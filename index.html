@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Military Retirement Timing Optimizer</title>
+<style>
+  :root { --bg:#0D1420; --panel:#16202E; --line:#2A3B52; --grid:#22314A; --text:#D7E2EF; --muted:#7C8DA6;
+          --amber:#FFB454; --blue:#6EB4FF; --green:#7ED9A0; --red:#FF7A6E; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 ui-sans-serif,system-ui,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+  .eyebrow { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  h1 { font-size:18px; margin:4px 0 2px; }
+  .cards { display:flex; flex-wrap:wrap; gap:10px; }
+  .card { flex:1 1 200px; border:1px solid var(--line); border-radius:6px; padding:8px 12px; text-align:center; }
+  .card .big { font:700 24px ui-monospace,monospace; margin:2px 0; }
+  .card .sub { font:11px ui-monospace,monospace; color:var(--muted); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px 20px; }
+  .ctl label { display:flex; justify-content:space-between; align-items:baseline; }
+  .ctl .val { font:13px ui-monospace,monospace; }
+  .ctl input[type=range] { width:100%; accent-color:var(--amber); }
+  .ctl input[type=month], .ctl input[type=number], .ctl select {
+    width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:5px 6px; font:13px ui-monospace,monospace; }
+  .sec { font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--amber); margin:6px 0 2px; grid-column:1/-1; }
+  table { width:100%; border-collapse:collapse; font:12.5px ui-monospace,monospace; }
+  th, td { padding:6px 8px; text-align:right; white-space:nowrap; }
+  th { color:var(--muted); font-weight:500; text-transform:uppercase; font-size:11px; border-bottom:1px solid var(--line); }
+  th:first-child, td:first-child { text-align:left; }
+  tr.best td { color:var(--amber); font-weight:700; }
+  .tbl { overflow-x:auto; }
+  svg text { font:11px ui-monospace,monospace; fill:var(--muted); }
+  .foot { font-size:11.5px; color:var(--muted); line-height:1.5; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  button { background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:4px; padding:6px 10px; cursor:pointer; font-size:12px; }
+  button:hover { border-color:var(--amber); }
+  a { color:var(--blue); }
+  .ctl .lab { display:flex; align-items:center; gap:6px; }
+  .info { width:16px; height:16px; border-radius:50%; border:1px solid var(--muted); color:var(--muted); background:none;
+          font:700 10px ui-monospace,monospace; line-height:14px; padding:0; text-align:center; cursor:pointer; flex:none; }
+  .info:hover, .info[aria-expanded=true] { border-color:var(--amber); color:var(--amber); }
+  .help { display:none; margin:6px 0 2px; padding:8px 10px; border-left:2px solid var(--amber); background:var(--bg); border-radius:0 4px 4px 0;
+          font-size:12px; color:var(--text); line-height:1.5; }
+  .help.open { display:block; }
+  .help b { color:var(--amber); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="panel">
+    <div class="eyebrow">Military retirement timing optimizer</div>
+    <h1>High-3 pension vs. civilian career — when should you get out?</h1>
+    <div class="eyebrow" id="subhead"></div>
+    <div class="cards" style="margin-top:10px">
+      <div class="card"><div class="eyebrow">Wealth-optimal exit (NPV)</div><div class="big" id="bestDate" style="color:var(--amber)">—</div><div class="sub" id="bestSub"></div></div>
+      <div class="card" id="targetCard"><div class="eyebrow" id="targetLbl">Earliest exit hitting target at 65</div><div class="big" id="hitDate">—</div><div class="sub" id="hitSub"></div></div>
+      <div class="card"><div class="eyebrow">Regime</div><div class="big" id="regime">—</div><div class="sub" id="regimeSub"></div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="eyebrow">Total money from earliest exit to planning age (2026 dollars) vs. exit date</div>
+    <svg id="chart1" viewBox="0 0 1000 340" width="100%"></svg>
+  </div>
+  <div class="panel">
+    <div class="eyebrow">Steady-state income at 65+ (pension + VA + rental + nest-egg draw + Social Security) vs. exit date</div>
+    <svg id="chart2" viewBox="0 0 1000 260" width="100%"></svg>
+  </div>
+
+  <div class="panel">
+    <div class="grid" id="controls"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="btnLink">Copy shareable link</button>
+      <button id="btnReset">Reset to defaults</button>
+      <span class="eyebrow" id="linkMsg"></span>
+    </div>
+  </div>
+
+  <div class="panel tbl"><table id="tbl"></table></div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+// ============================ 2026 MONTHLY BASIC PAY ============================
+// {grade: {yosStep: $/mo}} — step = "over N years"; 0 = under 2.
+const PAY = {
+  "O-6": {0:8751,2:9614,3:10245,4:10245,6:10284,8:10725,10:10784,12:10784,14:11396,16:12480,18:13115,20:13751,22:14113,24:14479,26:15189,30:15493},
+  "O-5": {0:7295,2:8219,3:8787,4:8894,6:9250,8:9462,10:9929,12:10272,14:10714,16:11392,18:11714,20:12033,22:12394},
+  "O-4": {0:6294,2:7286,3:7773,4:7881,6:8332,8:8816,10:9419,12:9888,14:10214,16:10402,18:10510},
+  "O-3": {0:5535,2:6273,3:6771,4:7383,6:7737,8:8125,10:8376,12:8788,14:9004},
+  "O-3E":{4:7383,6:7737,8:8125,10:8376,12:8788,14:9137,16:9337,18:9609},
+  "W-5": {20:10170,22:10686,24:11070,26:11495,30:12071,34:12673,38:13308},
+  "W-4": {0:5720,2:6152,3:6329,4:6503,6:6802,8:7098,10:7398,12:7848,14:8244,16:8620,18:8928,20:9228,22:9669,24:10032,26:10445,30:10654},
+  "W-3": {0:5223,2:5441,3:5664,4:5738,6:5971,8:6431,10:6910,12:7136,14:7398,16:7666,18:8150,20:8477,22:8672,24:8879,26:9162},
+  "E-9": {10:6910,12:7067,14:7264,16:7496,18:7731,20:8105,22:8423,24:8756,26:9268,30:9730,34:10217,38:10729},
+  "E-8": {8:5657,10:5907,12:6062,14:6247,16:6448,18:6811,20:6995,22:7308,24:7482,26:7909,30:8068},
+  "E-7": {0:3932,2:4291,3:4456,4:4673,6:4844,8:5135,10:5300,12:5592,14:5835,16:6001,18:6177,20:6245,22:6475,24:6598,26:7067},
+  "E-6": {0:3401,2:3743,3:3908,4:4068,6:4236,8:4612,10:4760,12:5044,14:5131,16:5194,18:5268},
+};
+const GRADES = Object.keys(PAY);
+
+// ============================ CONTROLS ============================
+// type: month | select | range
+const CTRLS = [
+  {sec:"Career"},
+  {id:"basd",  name:"Pay entry / commissioning date", type:"month", def:"2008-05"},
+  {id:"birth", name:"Birth month", type:"month", def:"1986-06"},
+  {id:"grade", name:"Current grade", type:"select", def:"O-5"},
+  {id:"nextGrade", name:"Next promotion grade", type:"select", def:"O-6", none:true},
+  {id:"pin",   name:"Promotion pin-on date", type:"month", def:"2029-01"},
+  {id:"first", name:"Earliest exit considered", type:"month", def:"2030-07"},
+  {id:"last",  name:"Latest exit considered", type:"month", def:"2038-05"},
+  {sec:"Civilian career & valuation"},
+  {id:"sal",   name:"Civilian salary at exit", type:"range", min:50000, max:400000, step:5000, def:175000, fmt:v=>"$"+Math.round(v/1000)+"K"},
+  {id:"growth",name:"Civilian raises (real)", type:"range", min:0, max:10, step:0.25, def:0, fmt:v=>v.toFixed(2)+"%/yr"},
+  {id:"civEnd",name:"Stop working at age", type:"range", min:45, max:75, step:1, def:65, fmt:v=>"age "+v},
+  {id:"disc",  name:"Discount rate (real)", type:"range", min:0, max:8, step:0.25, def:3, fmt:v=>v.toFixed(2)+"%"},
+  {id:"horizon",name:"Plan to age", type:"range", min:75, max:100, step:1, def:85, fmt:v=>v},
+  {sec:"Retirement income at 65"},
+  {id:"target",name:"Target income at 65", type:"range", min:50000, max:400000, step:5000, def:150000, fmt:v=>"$"+Math.round(v/1000)+"K/yr"},
+  {id:"nest0", name:"Investments today", type:"range", min:0, max:2000000, step:5000, def:250000, fmt:v=>"$"+Math.round(v/1000)+"K"},
+  {id:"save",  name:"Savings rate", type:"range", min:0, max:50, step:1, def:5, fmt:v=>v+"% of income"},
+  {id:"ret",   name:"Real investment return", type:"range", min:0, max:8, step:0.25, def:5, fmt:v=>v.toFixed(2)+"%/yr"},
+  {id:"wd",    name:"Withdrawal rate at 65", type:"range", min:2, max:6, step:0.25, def:4, fmt:v=>v.toFixed(2)+"%"},
+  {id:"ss",    name:"Social Security", type:"range", min:0, max:70000, step:1000, def:40000, fmt:v=>"$"+Math.round(v/1000)+"K/yr"},
+  {id:"va",    name:"VA disability", type:"range", min:0, max:5000, step:100, def:0, fmt:v=>"$"+v.toLocaleString()+"/mo"},
+  {id:"rent",  name:"Net rental income", type:"range", min:0, max:6000, step:100, def:0, fmt:v=>"$"+v.toLocaleString()+"/mo"},
+  {id:"rentYr",name:"Rental income starts", type:"range", min:2026, max:2060, step:1, def:2045, fmt:v=>v},
+];
+const HELP = {"basd": "Your pay entry date (basic date of active service) — the day the years-of-service clock started. Drives longevity pay steps, the pension multiplier, and the 20/24/26/30-year marks. Officers: usually your commissioning date unless you have prior enlisted time.", "birth": "Sets your age at each exit date and the ages the model cares about: when civilian work stops, age 65 (when investments start paying out), and the planning age.", "grade": "The pay grade you hold today. Determines basic pay until the promotion date below.", "nextGrade": "The grade you expect to pin on next (or none). Only one future promotion is modeled — good enough for a retirement-window decision.", "pin": "The month you expect to pin on the next grade. Every month in the new grade inside your final 36 months raises your High-3 average. Also sets the 2-yr and 3-yr time-in-grade markers on the chart (retiring in a new grade normally requires 3 yrs TIG; a 2-yr waiver is possible).", "first": "The first retirement date the model considers — typically your 20-year point or the earliest you'd realistically leave. All scenarios are compared from this month forward.", "last": "The last retirement date considered — often 30 years of service, or a mandatory retirement date. The chart sweeps every month between earliest and latest.", "sal": "Gross annual pay of the civilian job you'd take the month you retire, in today's dollars. Applies identically to every exit date — the model assumes the job is there whenever you leave.", "growth": "How fast that civilian salary grows <b>after inflation</b>. 0% = flat purchasing power (a GS-style job that only gets COLA); 3–5% = steady promotions; 7%+ = aggressive career track. This is the slider that most often flips the answer: fast civilian growth rewards leaving early, because every year in uniform delays your whole salary curve.", "civEnd": "The age you stop civilian work entirely. After this, income is pension + VA + rental (+ investments from 65). Stopping earlier favors staying in the military longer, since the civilian career has fewer years to pay off.", "disc": "How much less you value a future dollar than a dollar today, per year, <b>after inflation</b>. 0% = a dollar at 84 counts the same as a dollar at 45 (just maximize the lifetime pile). 3% ≈ you invest surplus and money sooner is genuinely worth more — a sensible default. 5%+ = you strongly prioritize the next 10–15 years. Higher rates shrink distant pension dollars and favor earlier exits. Do <b>not</b> enter a nominal market return here (8–10%) — the model is already inflation-free.", "horizon": "How long the model pays out the pension — your planning lifespan. Longer horizons favor staying in, because a bigger COLA-protected pension pays off for more years. Try 80 vs. 90 to see how much your answer depends on longevity.", "target": "The annual income (today's dollars, pre-tax) you want at 65 and beyond. The green line on the second chart; the model reports the earliest exit that clears it.", "nest0": "Everything you have invested today — TSP, IRAs, brokerage. Home equity is <b>not</b> included (it's not income unless you sell). Grows at the real return below and receives your savings each month until 65.", "save": "The share of <b>all</b> gross income (military pay, civilian salary, pension, rental) that goes into investments each month until 65. 5% is modest; 15%+ noticeably changes the 65+ picture. Roughly the same dollars get saved regardless of exit date, so this mostly shifts the whole income-at-65 line up or down.", "ret": "Average annual growth of your investments <b>after inflation</b>. Long-run stock-heavy portfolios have delivered roughly 5–7% real; a balanced portfolio 3–5%; bonds/TIPS 1–2%. Try 3% as a cautious case — it's the assumption your 65+ income is most sensitive to.", "wd": "The share of your investment balance you draw each year from 65 on. 4% is the classic rule of thumb for a portfolio lasting ~30 years; 3% is conservative, 5% aggressive. Income at 65 = pension + VA + rental + this × your balance + Social Security.", "ss": "Your estimated annual Social Security benefit in today's dollars. Get the real number from ssa.gov/myaccount. It's identical across exit dates, so it doesn't change <i>which</i> exit wins — but it matters a lot for whether you hit your target. The model applies it from 65 for simplicity (most people claim at 67).", "va": "Monthly VA disability compensation from the day you retire, tax-free. With 20+ years and a rating of 50% or higher you receive it on top of the full pension (CRDP). Below 50%, it offsets the pension dollar-for-dollar, so the net add is ~$0 — set this to 0 in that case.", "rent": "Monthly rental income <b>after</b> expenses (mortgage payoff assumed by the start year, minus maintenance, vacancy, and property management — a 15–25% haircut off gross rent is typical). Applies regardless of exit date.", "rentYr": "The year the net rental income begins — typically when the mortgage is paid off, or when you start renting the property."};
+const S = {};   // current state
+
+// ============================ HELPERS ============================
+const mIdx = ym => { const [y,m] = ym.split("-").map(Number); return y*12 + (m-1); };
+const label = i => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i%12] + " " + Math.floor(i/12);
+const fmtM = v => "$" + (v/1e6).toFixed(2) + "M";
+const fmtK = v => "$" + Math.round(v/1000) + "K";
+const NOW_IDX = 2026*12 + 7;
+
+function basePay(i, P) {
+  const grade = (P.nextGrade !== "none" && i >= P.pinIdx) ? P.nextGrade : P.grade;
+  const yos = Math.floor((i - P.basdIdx) / 12);
+  const steps = Object.keys(PAY[grade]).map(Number).sort((a,b)=>a-b);
+  let band = steps[0];
+  for (const s of steps) if (s <= yos) band = s;
+  return PAY[grade][band];
+}
+function high3(retIdx, P) { let s=0; for (let i=retIdx-36;i<retIdx;i++) s+=basePay(i,P); return s/36; }
+function multiplier(retIdx, P) { return 0.025 * (retIdx - P.basdIdx) / 12; }
+
+function evaluate(retIdx, P) {
+  const pensionMo = high3(retIdx,P) * multiplier(retIdx,P);
+  const civEnd = P.birthIdx + P.civEnd*12, age65 = P.birthIdx + 65*12, horizon = P.birthIdx + P.horizon*12;
+  const dm = Math.pow(1+P.disc, 1/12), rm = Math.pow(1+P.ret, 1/12), rentStart = P.rentYr*12;
+  let total=0, npv=0, nest=P.nest0;
+  for (let i=NOW_IDX; i<horizon; i++) {
+    let cash;
+    if (i < retIdx) cash = basePay(i,P);
+    else { cash = pensionMo + P.va; if (i < civEnd) cash += (P.sal/12) * Math.pow(1+P.growth, (i-retIdx)/12); }
+    if (i >= rentStart) cash += P.rent;
+    if (i < age65) nest = nest*rm + cash*P.save;
+    if (i >= P.firstIdx) { total += cash; npv += cash / Math.pow(dm, i-P.firstIdx); }
+  }
+  const income65 = (pensionMo + P.va + P.rent)*12 + nest*P.wd + P.ss;
+  return { total, npv, nest, income65, pension: pensionMo*12, high3: high3(retIdx,P), mult: multiplier(retIdx,P) };
+}
+
+function params() {
+  return {
+    basdIdx: mIdx(S.basd), birthIdx: mIdx(S.birth), grade: S.grade, nextGrade: S.nextGrade,
+    pinIdx: S.nextGrade==="none" ? 1e9 : mIdx(S.pin), firstIdx: mIdx(S.first), lastIdx: mIdx(S.last),
+    sal:+S.sal, growth:S.growth/100, civEnd:+S.civEnd, disc:S.disc/100, horizon:+S.horizon,
+    target:+S.target, nest0:+S.nest0, save:S.save/100, ret:S.ret/100, wd:S.wd/100, ss:+S.ss,
+    va:+S.va, rent:+S.rent, rentYr:+S.rentYr,
+  };
+}
+
+// ============================ SVG CHART ============================
+function drawChart(svgId, rows, series, opts) {
+  const svg = document.getElementById(svgId); const W=1000, H=+svg.getAttribute("viewBox").split(" ")[3];
+  const L=70, R=20, T=16, B=34; svg.innerHTML="";
+  const xs = rows.map((_,i)=>i), n=rows.length;
+  let ys=[]; series.forEach(s=>ys.push(...rows.map(r=>r[s.key]))); if (opts.hline!=null) ys.push(opts.hline);
+  let ymin=Math.min(...ys), ymax=Math.max(...ys); const pad=(ymax-ymin)*0.08||1; ymin-=pad; ymax+=pad;
+  const X=i=>L+(W-L-R)*i/Math.max(n-1,1), Y=v=>T+(H-T-B)*(1-(v-ymin)/(ymax-ymin));
+  const el=(t,a,txt)=>{const e=document.createElementNS("http://www.w3.org/2000/svg",t); for(const k in a) e.setAttribute(k,a[k]); if(txt!=null) e.textContent=txt; svg.appendChild(e); return e;};
+  // grid + y ticks
+  for (let k=0;k<=5;k++){ const v=ymin+(ymax-ymin)*k/5; el("line",{x1:L,x2:W-R,y1:Y(v),y2:Y(v),stroke:"#22314A","stroke-dasharray":"2 4"}); el("text",{x:L-8,y:Y(v)+4,"text-anchor":"end"},opts.yfmt(v)); }
+  // x ticks: Januaries
+  rows.forEach((r,i)=>{ if (r.idx%12===0){ el("line",{x1:X(i),x2:X(i),y1:T,y2:H-B,stroke:"#22314A"}); el("text",{x:X(i),y:H-B+16,"text-anchor":"middle"},String(r.idx/12)); }});
+  // vertical markers
+  (opts.vlines||[]).forEach(v=>{ const i=rows.findIndex(r=>r.idx===v.idx); if(i<0) return; el("line",{x1:X(i),x2:X(i),y1:T,y2:H-B,stroke:"#3D5270","stroke-dasharray":"4 4"}); el("text",{x:X(i)+4,y:T+12},v.label); });
+  if (opts.hline!=null){ el("line",{x1:L,x2:W-R,y1:Y(opts.hline),y2:Y(opts.hline),stroke:"var(--green)","stroke-dasharray":"6 3"}); el("text",{x:W-R-4,y:Y(opts.hline)-4,"text-anchor":"end",fill:"var(--green)",style:"fill:var(--green)"},opts.hlabel); }
+  series.forEach(s=>{ const d=rows.map((r,i)=>(i?"L":"M")+X(i).toFixed(1)+","+Y(r[s.key]).toFixed(1)).join(" "); el("path",{d,fill:"none",stroke:s.color,"stroke-width":2.5,"stroke-dasharray":s.dash||""}); });
+  (opts.dots||[]).forEach(d=>{ const i=rows.findIndex(r=>r.idx===d.idx); if(i<0) return; el("circle",{cx:X(i),cy:Y(rows[i][d.key]),r:6,fill:d.color,stroke:"#0D1420","stroke-width":2}); });
+  // legend
+  let lx=L+6; series.forEach(s=>{ el("line",{x1:lx,x2:lx+22,y1:H-8,y2:H-8,stroke:s.color,"stroke-width":2.5,"stroke-dasharray":s.dash||""}); const t=el("text",{x:lx+28,y:H-4},s.name); lx+=28+s.name.length*6.8+18; });
+}
+
+// ============================ MAIN ============================
+function compute() {
+  const P = params();
+  if (!(P.lastIdx > P.firstIdx)) return;
+  const rows=[];
+  for (let i=P.firstIdx; i<=P.lastIdx; i++) { const e=evaluate(i,P); rows.push({idx:i, name:label(i), ...e, TotalM:e.total/1e6, NPVM:e.npv/1e6, Inc65K:e.income65/1000}); }
+  let best=rows[0]; for (const r of rows) if (r.npv>best.npv) best=r;
+  const hit = rows.find(r=>r.income65>=P.target) || null;
+
+  // header
+  const yosNow = ((NOW_IDX-P.basdIdx)/12).toFixed(1);
+  document.getElementById("subhead").textContent = `${S.grade}${S.nextGrade!=="none"?" → "+S.nextGrade+" pin "+label(P.pinIdx):""} · ${yosNow} yrs service now · exits ${label(P.firstIdx)} – ${label(P.lastIdx)} · 2026 real dollars`;
+  document.getElementById("bestDate").textContent = best.name;
+  document.getElementById("bestSub").textContent = `NPV ${fmtM(best.npv)} · ${best.npv-rows[0].npv>=0?"+":""}${fmtM(best.npv-rows[0].npv)} vs ${rows[0].name}`;
+  document.getElementById("targetLbl").textContent = `Earliest exit hitting ${fmtK(P.target)}/yr at 65`;
+  const hd=document.getElementById("hitDate"), hs=document.getElementById("hitSub"), tc=document.getElementById("targetCard");
+  hd.textContent = hit ? hit.name : "Not reached"; hd.style.color = hit ? "var(--green)" : "var(--red)"; tc.style.borderColor = hd.style.color;
+  hs.textContent = hit ? `${fmtK(hit.income65)}/yr · nest egg ${fmtM(hit.nest)}` : `latest exit gives ${fmtK(rows[rows.length-1].income65)}/yr`;
+  const atEnd=best.idx===P.lastIdx, atStart=best.idx===P.firstIdx;
+  const rg=document.getElementById("regime"); rg.textContent = atEnd?"HOLD":atStart?"PUNCH":"INTERIOR OPT"; rg.style.color = atEnd?"var(--blue)":"var(--amber)";
+  document.getElementById("regimeSub").textContent = atEnd?"Pension accrual dominates — later exit is better.":atStart?"Civilian growth dominates — earliest exit is better.":"Mixed — an interior optimum exists.";
+
+  // charts
+  const vl=[]; if (S.nextGrade!=="none"){ vl.push({idx:P.pinIdx+24,label:"2-yr TIG"}); vl.push({idx:P.pinIdx+36,label:"3-yr TIG"}); }
+  drawChart("chart1", rows, [{key:"TotalM",name:"Total real $ to "+S.horizon,color:"var(--blue)"},{key:"NPVM",name:"NPV @ "+(+S.disc).toFixed(1)+"%",color:"var(--amber)",dash:"6 3"}],
+    {yfmt:v=>"$"+v.toFixed(1)+"M", vlines:vl, dots:[{idx:best.idx,key:"NPVM",color:"var(--amber)"}]});
+  drawChart("chart2", rows, [{key:"Inc65K",name:"Income at 65+",color:"var(--green)"}],
+    {yfmt:v=>"$"+v.toFixed(0)+"K", hline:P.target/1000, hlabel:"target "+fmtK(P.target), dots: hit?[{idx:hit.idx,key:"Inc65K",color:"var(--green)"}]:[]});
+
+  // table: first, best, hit, TIG gates, 20/24/26/30 YOS, last — deduped & sorted
+  const marks=new Set([P.firstIdx,best.idx,P.lastIdx]); if(hit) marks.add(hit.idx);
+  if (S.nextGrade!=="none"){ marks.add(P.pinIdx+24); marks.add(P.pinIdx+36); }
+  [20,24,26,30].forEach(y=>marks.add(P.basdIdx+y*12));
+  const keys=[...marks].filter(i=>i>=P.firstIdx&&i<=P.lastIdx).sort((a,b)=>a-b);
+  const th=`<tr><th>Exit</th><th>YOS</th><th>Mult</th><th>High-3/mo</th><th>Pension/yr</th>${S.nextGrade!=="none"?"<th>TIG mo</th>":""}<th>Nest egg @65</th><th>Income @65</th><th>Total→${S.horizon}</th><th>NPV</th></tr>`;
+  const tr=keys.map(i=>{ const r=rows[i-P.firstIdx]; return `<tr class="${i===best.idx?"best":""}"><td>${r.name}</td><td>${((i-P.basdIdx)/12).toFixed(1)}</td><td>${(r.mult*100).toFixed(1)}%</td><td>$${Math.round(r.high3).toLocaleString()}</td><td>$${Math.round(r.pension).toLocaleString()}</td>${S.nextGrade!=="none"?`<td>${i-P.pinIdx}</td>`:""}<td>${fmtM(r.nest)}</td><td style="color:${r.income65>=P.target?"var(--green)":"var(--red)"}">${fmtK(r.income65)}</td><td>${fmtM(r.total)}</td><td>${fmtM(r.npv)}</td></tr>`; }).join("");
+  document.getElementById("tbl").innerHTML = th+tr;
+
+  document.getElementById("foot").innerHTML =
+    `<b>Model.</b> Active-duty basic pay (2026 table, allowances excluded — assumed spent) until exit · civilian salary from exit to the stop-work age, compounding at the real raise rate · High-3 pension = 2.5% × years of service × average of highest 36 months of basic pay, COLA-protected (flat in real dollars) from exit to the planning age. VA disability is tax-free from exit (assumes concurrent receipt — rating ≥50% — otherwise it offsets the pension). Rental income is net of expenses from the start year; home equity is not counted. Investments start at today's balance, grow at the real return, receive savings-rate × all income each month until 65, then pay out at the withdrawal rate. Social Security assumed flat from 65 (realistically 67). Everything is in constant 2026 dollars and pre-tax. Retiring in a new grade with &lt;3 yrs time-in-grade may mean the retired <em>grade</em> is the lower one (2-yr waiver possible) — the pension math is unaffected. Pay table: <a href="https://www.navycs.com/charts/2026-military-pay-chart.html" target="_blank" rel="noopener">2026 DFAS rates</a>. Not financial advice — a planning tool.`;
+}
+
+// ============================ UI WIRING ============================
+function build() {
+  const box=document.getElementById("controls"); box.innerHTML="";
+  CTRLS.forEach(c=>{
+    if (c.sec){ const d=document.createElement("div"); d.className="sec"; d.textContent=c.sec; box.appendChild(d); return; }
+    const d=document.createElement("div"); d.className="ctl";
+    const lab=document.createElement("label"); const lw=document.createElement("span"); lw.className="lab";
+    const nm=document.createElement("span"); nm.className="eyebrow"; nm.textContent=c.name; lw.appendChild(nm);
+    const help=document.createElement("div"); help.className="help"; help.innerHTML=HELP[c.id]||"";
+    if (HELP[c.id]) { const ib=document.createElement("button"); ib.type="button"; ib.className="info"; ib.textContent="i"; ib.title="What does this mean?"; ib.setAttribute("aria-expanded","false");
+      ib.onclick=()=>{ const o=!help.classList.contains("open"); help.classList.toggle("open",o); ib.setAttribute("aria-expanded",String(o)); }; lw.appendChild(ib); }
+    const val=document.createElement("span"); val.className="val"; val.id="v_"+c.id; lab.append(lw,val); d.appendChild(lab); d.appendChild(help);
+    let inp;
+    if (c.type==="range"){ inp=document.createElement("input"); inp.type="range"; inp.min=c.min; inp.max=c.max; inp.step=c.step; }
+    else if (c.type==="month"){ inp=document.createElement("input"); inp.type="month"; }
+    else { inp=document.createElement("select"); (c.none?["none",...GRADES]:GRADES).forEach(g=>{const o=document.createElement("option"); o.value=g; o.textContent=g==="none"?"— none —":g; inp.appendChild(o);}); }
+    inp.id="c_"+c.id; inp.value=S[c.id];
+    inp.addEventListener("input",()=>{ S[c.id]=inp.value; refresh(c); });
+    d.appendChild(inp); box.appendChild(d);
+  });
+}
+function refresh(changed) {
+  CTRLS.filter(c=>c.id).forEach(c=>{ const v=document.getElementById("v_"+c.id); if(v) v.textContent = c.type==="range"?c.fmt(+S[c.id]):""; });
+  const pinCtl=document.getElementById("c_pin"); if (pinCtl) pinCtl.disabled = S.nextGrade==="none";
+  try { compute(); } catch(e){ console.error(e); }
+  if (changed) history.replaceState(null,"","?"+new URLSearchParams(S).toString());
+}
+function loadState() {
+  CTRLS.filter(c=>c.id).forEach(c=>S[c.id]=String(c.def));
+  new URLSearchParams(location.search).forEach((v,k)=>{ if (k in S) S[k]=v; });
+}
+document.getElementById("btnLink").onclick=()=>{ const u=location.origin+location.pathname+"?"+new URLSearchParams(S).toString(); navigator.clipboard.writeText(u).then(()=>{document.getElementById("linkMsg").textContent="Link copied — it encodes every setting.";}); };
+document.getElementById("btnReset").onclick=()=>{ history.replaceState(null,"",location.pathname); loadState(); build(); refresh(); };
+loadState(); build(); refresh();
+</script>
+</body>
+</html>
