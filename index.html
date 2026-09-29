@@ -153,6 +153,7 @@ const mIdx = ym => { const [y,m] = ym.split("-").map(Number); return y*12 + (m-1
 const label = i => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][i%12] + " " + Math.floor(i/12);
 const fmtM = v => "$" + (v/1e6).toFixed(2) + "M";
 const fmtK = v => "$" + Math.round(v/1000) + "K";
+const fmtR = r => { if(!r) return "—"; const a=Math.round(r[0]/1000), b=Math.round(r[1]/1000); return a===b ? "$"+a+"K" : "$"+a+"–"+b+"K"; };
 const NOW_IDX = 2026*12 + 7;
 
 function basePay(i, P) {
@@ -178,6 +179,8 @@ function evaluate(retIdx, P) {
   const e1 = Math.min(drawIdx, ssIdx), e2 = Math.max(drawIdx, ssIdx);      // first / second retirement-income event
   const A0 = workEnd, A1 = e1, B0 = Math.max(workEnd, e1), B1 = e2, C0 = Math.max(workEnd, e2);
   let total=0, npv=0, nest=P.nest0, nest65=0, wS=0,wN=0, aS=0,aN=0,bS=0,bN=0,cS=0,cN=0, outIdx=null, drawMo=0;
+  const W={lo:1/0,hi:-1/0}, A={lo:1/0,hi:-1/0}, B={lo:1/0,hi:-1/0}, C={lo:1/0,hi:-1/0};
+  const span=(o,c)=>{ if(c<o.lo)o.lo=c; if(c>o.hi)o.hi=c; };
   for (let i=NOW_IDX; i<horizon; i++) {
     let cash;
     if (i < retIdx) cash = basePay(i,P) + P.allow*g1;
@@ -195,17 +198,19 @@ function evaluate(retIdx, P) {
       nest = nest*rm;
       if (nest > 0) { const w = Math.min(drawMo, nest); cash += w*gDraw; nest -= w; if (nest <= 0.5 && outIdx===null) outIdx = i; }
     }
-    if (i >= retIdx && i < civEnd) { wS += cash; wN++; }                    // working the civilian job
-    if (i >= A0 && i < A1) { aS += cash; aN++; }                             // stop work → first event
-    else if (i >= B0 && i < B1) { bS += cash; bN++; }                        // first event → second event
-    else if (i >= C0) { cS += cash; cN++; }                                  // both flowing → horizon
+    if (i >= retIdx && i < civEnd) { wS += cash; wN++; span(W,cash); }
+    if (i >= A0 && i < A1) { aS += cash; aN++; span(A,cash); }
+    else if (i >= B0 && i < B1) { bS += cash; bN++; span(B,cash); }
+    else if (i >= C0) { cS += cash; cN++; span(C,cash); }
     if (i >= P.firstIdx) { total += cash; npv += cash / Math.pow(dm, i-P.firstIdx); }
   }
   if (!nest65) nest65 = nest;
   const nestEnd = nest, outAge = outIdx===null ? null : (outIdx - P.birthIdx)/12;
   const phW = wN ? wS/wN*12 : null, phA = aN ? aS/aN*12 : null, phB = bN ? bS/bN*12 : null;
+  const rng=(o,n)=> n ? [o.lo*12, o.hi*12] : null;
+  const phWr=rng(W,wN), phAr=rng(A,aN), phBr=rng(B,bN), phCr=rng(C,cN);
   const income65 = cN ? cS/cN*12 : (pensionMo + P.va*g1 + P.rent)*12 + nest65*P.wd*gDraw + P.ss*gSS;   // steady state: both flowing
-  return { total, npv, nest: nest65, nestEnd, outAge, income65, phW, phA, phB, pension: pensionMo*12, high3: high3(retIdx,P), mult: multiplier(retIdx,P) };
+  return { total, npv, nest: nest65, nestEnd, outAge, income65, phW, phA, phB, phWr, phAr, phBr, phCr, pension: pensionMo*12, high3: high3(retIdx,P), mult: multiplier(retIdx,P) };
 }
 
 function params() {
@@ -279,11 +284,11 @@ function compute() {
   [20,24,26,30].forEach(y=>marks.add(P.basdIdx+y*12));
   const keys=[...marks].filter(i=>i>=P.firstIdx&&i<=P.lastIdx).sort((a,b)=>a-b);
   const th=`<tr><th>Exit</th><th>YOS</th><th>Mult</th><th>High-3/mo</th><th>Pension/yr</th>${S.nextGrade!=="none"?"<th>TIG mo</th>":""}<th>Nest egg @${S.drawAge}</th><th>Nest egg @${S.horizon}</th><th>${hW}</th><th>${hA}</th><th>${hB}</th><th>${hC}</th><th>Total→${S.horizon}</th><th>NPV</th></tr>`;
-  const tr=keys.map(i=>{ const r=rows[i-P.firstIdx]; return `<tr class="${i===best.idx?"best":""}"><td>${r.name}</td><td>${((i-P.basdIdx)/12).toFixed(1)}</td><td>${(r.mult*100).toFixed(1)}%</td><td>$${Math.round(r.high3).toLocaleString()}</td><td>$${Math.round(r.pension).toLocaleString()}</td>${S.nextGrade!=="none"?`<td>${i-P.pinIdx}</td>`:""}<td>${fmtM(r.nest)}</td><td style="color:${r.outAge!=null?"var(--red)":r.nestEnd<r.nest?"var(--amber)":"var(--green)"}">${r.outAge!=null?"runs out @ "+Math.floor(r.outAge):fmtM(r.nestEnd)}</td><td>${r.phW==null?"—":fmtK(r.phW)}</td><td>${r.phA==null?"—":fmtK(r.phA)}</td><td>${r.phB==null?"—":fmtK(r.phB)}</td><td style="color:${r.income65>=P.target?"var(--green)":"var(--red)"}">${fmtK(r.income65)}</td><td>${fmtM(r.total)}</td><td>${fmtM(r.npv)}</td></tr>`; }).join("");
+  const tr=keys.map(i=>{ const r=rows[i-P.firstIdx]; return `<tr class="${i===best.idx?"best":""}"><td>${r.name}</td><td>${((i-P.basdIdx)/12).toFixed(1)}</td><td>${(r.mult*100).toFixed(1)}%</td><td>$${Math.round(r.high3).toLocaleString()}</td><td>$${Math.round(r.pension).toLocaleString()}</td>${S.nextGrade!=="none"?`<td>${i-P.pinIdx}</td>`:""}<td>${fmtM(r.nest)}</td><td style="color:${r.outAge!=null?"var(--red)":r.nestEnd<r.nest?"var(--amber)":"var(--green)"}">${r.outAge!=null?"runs out @ "+Math.floor(r.outAge):fmtM(r.nestEnd)}</td><td>${fmtR(r.phWr)}</td><td>${fmtR(r.phAr)}</td><td>${fmtR(r.phBr)}</td><td style="color:${r.income65>=P.target?"var(--green)":"var(--red)"}">${r.phCr?fmtR(r.phCr):fmtK(r.income65)}</td><td>${fmtM(r.total)}</td><td>${fmtM(r.npv)}</td></tr>`; }).join("");
   document.getElementById("tbl").innerHTML = th+tr;
 
   document.getElementById("foot").innerHTML =
-    `<b>Model.</b> All income is expressed in PRE-TAX SALARY-EQUIVALENT dollars (the RMC convention): tax-free streams — BAH/BAS, VA disability, the untaxed 15% of Social Security, the Roth share of draws — are grossed up by the marginal tax rate, while ordinary taxable income (basic pay, civilian salary, pension, rental) passes at face value; set the rate to 0% to compare raw check amounts instead. Active-duty comp (2026 basic pay table + grossed-up allowances) until exit · civilian salary from exit to the stop-work age, compounding at the real raise rate · High-3 pension = 2.5% × years of service × average of highest 36 months of basic pay, COLA-protected (flat in real dollars) from exit to the planning age. VA disability is tax-free from exit (assumes concurrent receipt — rating ≥50% — otherwise it offsets the pension). Rental income is net of expenses from the start year; home equity is not counted. Investments start at today's balance, grow at the real return, receive savings each month until the draw age (a percentage of income while serving and after civilian work ends; a fixed dollar amount while in the civilian job), optionally pay a fixed \"bridge\" amount between the end of civilian work and the draw age, then pay out a fixed real amount (withdrawal rate × balance at the draw age) while continuing to compound; if the balance hits zero, withdrawals stop and income drops accordingly. Social Security starts at the chosen age and is included in totals from then on. \"Working yrs\" is the average annual income (salary + pension + VA + rental once started) while holding the civilian job — the pool your civilian-years savings come out of. Phase columns are average annual income over: end of civilian work (or exit, if later) → first of {draw age, SS age}; first → second; second → planning age. Columns re-order automatically if SS precedes the draw. \"—\" means the phase has zero length. Everything is in constant 2026 dollars and pre-tax. Retiring in a new grade with &lt;3 yrs time-in-grade may mean the retired <em>grade</em> is the lower one (2-yr waiver possible) — the pension math is unaffected. Pay table: <a href="https://www.navycs.com/charts/2026-military-pay-chart.html" target="_blank" rel="noopener">2026 DFAS rates</a>. Not financial advice — a planning tool.`;
+    `<b>Model.</b> All income is expressed in PRE-TAX SALARY-EQUIVALENT dollars (the RMC convention): tax-free streams — BAH/BAS, VA disability, the untaxed 15% of Social Security, the Roth share of draws — are grossed up by the marginal tax rate, while ordinary taxable income (basic pay, civilian salary, pension, rental) passes at face value; set the rate to 0% to compare raw check amounts instead. Active-duty comp (2026 basic pay table + grossed-up allowances) until exit · civilian salary from exit to the stop-work age, compounding at the real raise rate · High-3 pension = 2.5% × years of service × average of highest 36 months of basic pay, COLA-protected (flat in real dollars) from exit to the planning age. VA disability is tax-free from exit (assumes concurrent receipt — rating ≥50% — otherwise it offsets the pension). Rental income is net of expenses from the start year; home equity is not counted. Investments start at today's balance, grow at the real return, receive savings each month until the draw age (a percentage of income while serving and after civilian work ends; a fixed dollar amount while in the civilian job), optionally pay a fixed \"bridge\" amount between the end of civilian work and the draw age, then pay out a fixed real amount (withdrawal rate × balance at the draw age) while continuing to compound; if the balance hits zero, withdrawals stop and income drops accordingly. Social Security starts at the chosen age and is included in totals from then on. \"Working yrs\" is the average annual income (salary + pension + VA + rental once started) while holding the civilian job — the pool your civilian-years savings come out of. Phase columns show the RANGE of annual income (lowest–highest year) within each window; the target check, header card, and charts use the steady-state average. Windows: end of civilian work (or exit, if later) → first of {draw age, SS age}; first → second; second → planning age. Columns re-order automatically if SS precedes the draw. \"—\" means the phase has zero length. Everything is in constant 2026 dollars and pre-tax. Retiring in a new grade with &lt;3 yrs time-in-grade may mean the retired <em>grade</em> is the lower one (2-yr waiver possible) — the pension math is unaffected. Pay table: <a href="https://www.navycs.com/charts/2026-military-pay-chart.html" target="_blank" rel="noopener">2026 DFAS rates</a>. Not financial advice — a planning tool.`;
 }
 
 // ============================ UI WIRING ============================
