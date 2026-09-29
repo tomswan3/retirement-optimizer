@@ -258,8 +258,12 @@ function compute() {
   const qolEl = document.getElementById("qol");
   if (qolEl) {
     const g1q = 1/(1-P.tax);
-    const spend = (+S.sal) + rows[0].pension + (+S.va)*12*g1q - (+S.civSave);
-    qolEl.innerHTML = `→ spendable ≈ <span style="color:var(--amber);font-weight:700">${fmtK(spend)}/yr</span> while working (salary + pension + VA − savings, ${rows[0].name} exit)`;
+    const workEndIdx = P.birthIdx + P.civEnd*12, rentStartIdx = P.rentYr*12, rentYrAmt = (+S.rent)*12;
+    let spend = (+S.sal) + rows[0].pension + (+S.va)*12*g1q - (+S.civSave);
+    let parts = "salary + pension + VA", tail = "";
+    if (rentYrAmt > 0 && rentStartIdx <= rows[0].idx) { spend += rentYrAmt; parts += " + rental"; }
+    else if (rentYrAmt > 0 && rentStartIdx < workEndIdx) { tail = `, +${fmtK(rentYrAmt)} rental from ${P.rentYr}`; }
+    qolEl.innerHTML = `→ spendable ≈ <span style="color:var(--amber);font-weight:700">${fmtK(spend)}/yr</span> while working (${parts} − savings, ${rows[0].name} exit${tail})`;
   }
   // header
   const yosNow = ((NOW_IDX-P.basdIdx)/12).toFixed(1);
