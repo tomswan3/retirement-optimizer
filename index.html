@@ -4,6 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Military Retirement Timing Optimizer</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0D1420" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="RetireOpt" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
 <style>
   :root { --bg:#0D1420; --panel:#16202E; --line:#2A3B52; --grid:#22314A; --text:#D7E2EF; --muted:#7C8DA6;
           --amber:#FFB454; --blue:#6EB4FF; --green:#7ED9A0; --red:#FF7A6E; }
@@ -305,6 +313,7 @@ function loadState() {
 document.getElementById("btnLink").onclick=()=>{ const u=location.origin+location.pathname+"?"+new URLSearchParams(S).toString(); navigator.clipboard.writeText(u).then(()=>{document.getElementById("linkMsg").textContent="Link copied — it encodes every setting.";}); };
 document.getElementById("btnReset").onclick=()=>{ history.replaceState(null,"",location.pathname); loadState(); build(); refresh(); };
 loadState(); build(); refresh();
+if ("serviceWorker" in navigator) { window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(()=>{}); }); }
 </script>
 </body>
 </html>

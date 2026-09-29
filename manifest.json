@@ -1,0 +1,16 @@
+{
+  "name": "Military Retirement Timing Optimizer",
+  "short_name": "RetireOpt",
+  "description": "High-3 pension vs. civilian career — when should you get out?",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0D1420",
+  "theme_color": "#0D1420",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
