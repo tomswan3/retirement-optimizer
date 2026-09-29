@@ -123,7 +123,7 @@ const CTRLS = [
   {id:"last",  name:"Latest exit considered", type:"month", def:"2038-05"},
   {sec:"Civilian career & valuation"},
   {id:"taxRate", name:"Marginal tax rate (equivalence)", type:"range", min:0, max:40, step:1, def:24, fmt:v=>v+"%"},
-  {id:"allow", name:"BAH + BAS while serving", type:"range", min:0, max:8000, step:100, def:3300, fmt:v=>"$"+v.toLocaleString()+"/mo"},
+  {id:"allow", name:"BAH + BAS while serving", type:"range", min:0, max:8000, step:100, def:4300, fmt:v=>"$"+v.toLocaleString()+"/mo"},
   {id:"sal",   name:"Civilian salary at exit", type:"range", min:50000, max:400000, step:5000, def:170000, fmt:v=>"$"+Math.round(v/1000)+"K"},
   {id:"growth",name:"Civilian raises (real)", type:"range", min:0, max:10, step:0.25, def:2.5, fmt:v=>v.toFixed(2)+"%/yr"},
   {id:"civEnd",name:"Stop working at age", type:"range", min:45, max:75, step:1, def:60, fmt:v=>"age "+v},
