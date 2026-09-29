@@ -254,6 +254,13 @@ function compute() {
   let best=rows[0]; for (const r of rows) if (r.npv>best.npv) best=r;
   const hit = rows.find(r=>r.income65>=P.target) || null;
 
+  // lifestyle note under the civilian-savings slider
+  const qolEl = document.getElementById("qol");
+  if (qolEl) {
+    const g1q = 1/(1-P.tax);
+    const spend = (+S.sal) + rows[0].pension + (+S.va)*12*g1q - (+S.civSave);
+    qolEl.innerHTML = `→ spendable ≈ <span style="color:var(--amber);font-weight:700">${fmtK(spend)}/yr</span> while working (salary + pension + VA − savings, ${rows[0].name} exit)`;
+  }
   // header
   const yosNow = ((NOW_IDX-P.basdIdx)/12).toFixed(1);
   document.getElementById("subhead").textContent = `${S.grade}${S.nextGrade!=="none"?" → "+S.nextGrade+" pin "+label(P.pinIdx):""} · ${yosNow} yrs service now · exits ${label(P.firstIdx)} – ${label(P.lastIdx)} · 2026 real dollars`;
@@ -309,7 +316,11 @@ function build() {
     else { inp=document.createElement("select"); (c.none?["none",...GRADES]:GRADES).forEach(g=>{const o=document.createElement("option"); o.value=g; o.textContent=g==="none"?"— none —":g; inp.appendChild(o);}); }
     inp.id="c_"+c.id; inp.value=S[c.id];
     inp.addEventListener("input",()=>{ S[c.id]=inp.value; refresh(c); });
-    d.appendChild(inp); box.appendChild(d);
+    d.appendChild(inp);
+    if (c.id==="civSave") { const q=document.createElement("div"); q.id="qol";
+      q.style.cssText="margin-top:4px;font:11.5px ui-monospace,monospace;color:var(--muted);line-height:1.4;";
+      d.appendChild(q); }
+    box.appendChild(d);
   });
 }
 function refresh(changed) {
