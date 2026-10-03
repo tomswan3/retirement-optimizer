@@ -82,6 +82,8 @@
     <div class="row" style="margin-top:12px">
       <button id="btnLink">Copy shareable link</button>
       <button id="btnReset">Reset to defaults</button>
+      <button id="btnSave">Save inputs on this device</button>
+      <button id="btnForget">Forget saved inputs</button>
       <span class="eyebrow" id="linkMsg"></span>
     </div>
   </div>
@@ -357,11 +359,16 @@ function refresh(changed) {
   try { compute(); } catch(e){ console.error(e); }
   if (changed) history.replaceState(null,"","?"+new URLSearchParams(S).toString());
 }
+const SAVE_KEY = "retireopt-inputs";
 function loadState() {
   CTRLS.filter(c=>c.id).forEach(c=>S[c.id]=String(c.def));
+  try { const sv = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
+        if (sv) for (const k in sv) if (k in S) S[k] = String(sv[k]); } catch(e) {}
   new URLSearchParams(location.search).forEach((v,k)=>{ if (k in S) S[k]=v; });
 }
 document.getElementById("btnLink").onclick=()=>{ const u=location.origin+location.pathname+"?"+new URLSearchParams(S).toString(); navigator.clipboard.writeText(u).then(()=>{document.getElementById("linkMsg").textContent="Link copied — it encodes every setting.";}); };
+document.getElementById("btnSave").onclick=()=>{ try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); document.getElementById("linkMsg").textContent="Saved — this device now opens with these values."; } catch(e){ document.getElementById("linkMsg").textContent="Couldn't save — storage is blocked in this browser."; } };
+document.getElementById("btnForget").onclick=()=>{ try { localStorage.removeItem(SAVE_KEY); } catch(e){} document.getElementById("linkMsg").textContent="Saved inputs cleared — opens with built-in defaults now."; };
 document.getElementById("btnReset").onclick=()=>{ history.replaceState(null,"",location.pathname); loadState(); build(); refresh(); };
 loadState(); build(); refresh();
 if ("serviceWorker" in navigator) { window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(()=>{}); }); }
