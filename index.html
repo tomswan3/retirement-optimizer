@@ -317,6 +317,7 @@ function compute() {
   const marks=new Set([P.firstIdx,best.idx,P.lastIdx]); if(hit) marks.add(hit.idx);
   if (S.nextGrade!=="none"){ marks.add(P.pinIdx+24); marks.add(P.pinIdx+36); }
   [20,24,26,30].forEach(y=>marks.add(P.basdIdx+y*12));
+  for (let i=P.firstIdx; i<=P.lastIdx; i++) if (i%12===6) marks.add(i);   // every July in the window
   const keys=[...marks].filter(i=>i>=P.firstIdx&&i<=P.lastIdx).sort((a,b)=>a-b);
   const th=`<tr><th>Exit</th><th>YOS</th><th>Mult</th><th>High-3/mo</th><th>Pension/yr</th>${S.nextGrade!=="none"?"<th>TIG mo</th>":""}<th>Nest egg @${(+S.bridge)>0?Math.max(+S.drawAge,+S.ssAge):+S.drawAge}</th><th>Nest egg @${S.horizon}</th><th>${hW}</th><th>${hA}</th><th>${hB}</th><th>${hC}</th><th>Total→${S.horizon}</th><th>NPV</th></tr>`;
   const tr=keys.map(i=>{ const r=rows[i-P.firstIdx]; return `<tr class="${i===best.idx?"best":""}"><td>${r.name}</td><td>${((i-P.basdIdx)/12).toFixed(1)}</td><td>${(r.mult*100).toFixed(1)}%</td><td>$${Math.round(r.high3).toLocaleString()}</td><td>$${Math.round(r.pension).toLocaleString()}</td>${S.nextGrade!=="none"?`<td>${i-P.pinIdx}</td>`:""}<td>${fmtM(r.nest)}</td><td style="color:${r.outAge!=null?"var(--red)":r.nestEnd<r.nest?"var(--amber)":"var(--green)"}">${r.outAge!=null?"runs out @ "+Math.floor(r.outAge):fmtM(r.nestEnd)}</td><td>${fmtR(r.phWr)}</td><td>${fmtR(r.phAr)}</td><td>${fmtR(r.phBr)}</td><td style="color:${r.income65>=P.target?"var(--green)":"var(--red)"}">${r.phCr?fmtR(r.phCr):fmtK(r.income65)}</td><td>${fmtM(r.total)}</td><td>${fmtM(r.npv)}</td></tr>`; }).join("");
