@@ -286,7 +286,8 @@ function compute() {
       const ti = P.hpPrice*(+S.hpTi)/100/12;
       const piReal = pi/Math.pow(1.025, +S.hpTerm);
       const ok = !rows[0].hpShort;
-      hpEl.innerHTML = `→ <span style="color:var(--amber);font-weight:700">$${Math.round(pi+ti).toLocaleString()}/mo</span> (P&I $${Math.round(pi).toLocaleString()} + T&I $${Math.round(ti).toLocaleString()}) · down $${Math.round(P.hpDownAmt/1000)}K from investments <span style="color:${ok?"var(--green)":"var(--red)"}">${ok?"✓":"✗ investments short at buy date"}</span> · payoff ${(+S.hpYear)+(+S.hpTerm)} · P&I melts to ≈$${Math.round(piReal).toLocaleString()}/mo real by payoff`;
+      const py = (+S.hpYear)+(+S.hpTerm), pyAge = py - Math.floor(P.birthIdx/12);
+      hpEl.innerHTML = `→ <span style="color:var(--amber);font-weight:700">$${Math.round(pi+ti).toLocaleString()}/mo</span> (P&I $${Math.round(pi).toLocaleString()} + T&I $${Math.round(ti).toLocaleString()}) · down $${Math.round(P.hpDownAmt/1000)}K from investments <span style="color:${ok?"var(--green)":"var(--red)"}">${ok?"✓":"✗ investments short at buy date"}</span><br>→ <span style="color:var(--green);font-weight:700">paid off ${py} (age ${pyAge})</span>: P&I ends — QoL rises ≈<span style="color:var(--green);font-weight:700">$${Math.round(piReal*12/1000)}K/yr</span> in real terms (the melted final-year payment; T&I ≈$${Math.round(ti*12/1000)}K/yr continues for life)`;
     }
   }
   // header
